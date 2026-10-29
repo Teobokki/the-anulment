@@ -37,7 +37,7 @@ def load(app, who, outfit="default"):
         if who != "ana" and not os.path.exists(p):
             p = os.path.join(app.BASE, "assets", "models", "heroine.bam")
         m = app.loader.load_model(Filename.from_os_specific(p)); fix_uv(m)
-        import an_hair; an_hair.prepare(m)     # v1.0.0.2: solid hair shell + clothes over the skin
+        import an_hair; an_hair.prepare(m, key, app.BASE)     # v1.0.0.2: solid hair shell + clothes over the skin
         _models[key] = m
     return _models[key].copy_to(NodePath(who))
 

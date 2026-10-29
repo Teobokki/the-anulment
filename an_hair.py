@@ -3,7 +3,7 @@
 * hair: the strand meshes are kept exactly as in FIREOUT SHINE (opaque, two-sided, depth write, same shader), and a
   hair-coloured scalp shell is added underneath (a copy of the head skin under the strands, pushed 2 mm out), so the
   gaps between strands show hair, never the scalp / background -> hair reads solid at every distance.
-* clothes: body skin that lies under a shirt / sleeve is pulled 4 mm inwards, so it can never poke through the cloth.
+* v1.0.0.3: the scalp skin under the shell and the body skin under the clothes are deleted (an_cover.py), no shrinking.
 * far crowd: simple opaque hair shapes (no strands)."""
 import numpy as np
 from panda3d.core import (GeomVertexReader, GeomVertexRewriter, GeomVertexFormat, GeomVertexData, GeomVertexWriter,
@@ -15,7 +15,9 @@ def _geomnodes(m, name):
     for g in m.find_all_matches("**/" + name):
         if g.node().is_geom_node(): out.append(g)
         out += [c for c in g.find_all_matches("**/+GeomNode") if c != g]
-    return out
+    import fnmatch
+    seen = []; [seen.append(g) for g in out if g not in seen and fnmatch.fnmatch(g.get_name(), name)]   # not the added layers
+    return seen
 
 
 def _read(gn, i, col):
@@ -49,18 +51,19 @@ def inflate_cloth(m, names=("tank", "sleeve*", "tank.*", "straps"), d=0.004):
                     v = rv.get_data3(); n = rn.get_data3(); rv.set_data3(v + n * d)
 
 
-def hair_shell(m, out=0.002, reach=0.016):
+def hair_shell(m, out=0.002, reach=0.016, parent=None, hair_from=None):
     """hair-coloured scalp under the strands (same transforms / shader inputs as the hair: it is the hair node's child)"""
     hr = m.find("**/hair")
     sk = _geomnodes(m, "skin")
-    hg = _geomnodes(m, "hair")
+    hg = _geomnodes(hair_from if hair_from is not None else m, "hair")
+    hm = hair_from if hair_from is not None else m
     if hr.is_empty() or not sk or not hg: return None
     sk = sk[0]; H = []; HC = []
     for g in hg:
         for i in range(g.node().get_num_geoms()):
             v = _read(g, i, "vertex"); c = _read(g, i, "color")
             if v is None: continue
-            mat = g.get_mat(m); v = np.array([tuple(mat.xform_point(tuple(map(float, p)))) for p in v[::3]], np.float32)
+            mat = g.get_mat(hm); v = np.array([tuple(mat.xform_point(tuple(map(float, p)))) for p in v[::3]], np.float32)
             H.append(v)
             if c is not None: HC.append(c)
     H = np.concatenate(H); col = np.concatenate(HC).mean(0) if HC else np.array([0.05, 0.035, 0.03, 1], np.float32)
@@ -93,7 +96,13 @@ def hair_shell(m, out=0.002, reach=0.016):
     tr = GeomTriangles(Geom.UH_static)
     for a, b, c in remap[sel]: tr.add_vertices(int(a), int(b), int(c))
     g = Geom(vd); g.add_primitive(tr); gn = GeomNode("hair_shell"); gn.add_geom(g)
-    sh = hr.attach_new_node(gn)
+    if parent is not None: hinv_ok = True
+    sh = (parent or hr).attach_new_node(gn)
+    if parent is not None: sh.set_mat(hr.get_mat(parent))
+    # v1.0.0.3: the scalp skin under the shell is removed (no two layers 2 mm apart -> no z-fighting on real GPUs)
+    keep = ~cov[T].all(1); g0 = sk.node().modify_geom(0); tr2 = GeomTriangles(Geom.UH_static)
+    for x, y, z in T[keep]: tr2.add_vertices(int(x), int(y), int(z))
+    g0.clear_primitives(); g0.add_primitive(tr2)
     mt = Material("hair_shell"); mt.set_base_color((1, 1, 1, 1)); mt.set_roughness(0.35); mt.set_metallic(0.0); sh.set_material(mt, 1)
     return sh
 
@@ -132,13 +141,13 @@ def tuck_under_cloth(m, names=("tank", "sleeve*", "tank.*"), reach=0.008, d=0.00
             break
 
 
-def prepare(m):
-    """called once per cached model (fs_people.load)"""
+def prepare(m, key="", base=""):
+    """called once per cached model (fs_people.load): hair shell replaces the scalp, covered body skin is removed"""
     try:
-        tuck_under_cloth(m)
+        import an_cover; an_cover.cover(m, key, base, tmax=0.015, under=False)     # first: the cache indexes the original skin
         hair_shell(m)
     except Exception as e:
-        print("an_hair.prepare:", e)
+        import traceback; traceback.print_exc(); print("an_hair.prepare:", e)
 
 
 # mean vertex colour of the strand meshes (daniel.bam / heroine.bam): hair colours are given as real target colours and

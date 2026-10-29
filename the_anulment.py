@@ -3,7 +3,7 @@
 import os, sys, json, time, math, random, threading, tempfile, urllib.request, shutil, traceback
 
 APP_NAME = "THE ANULMENT"
-APP_VERSION = "1.0.0.2"
+APP_VERSION = "1.0.0.3"
 REPO = "Teobokki/the-anulment"
 UPDATE_URL = "https://raw.githubusercontent.com/%s/main/latest.json" % REPO
 RELEASES_URL = "https://github.com/%s/releases/latest" % REPO
@@ -38,6 +38,7 @@ sync-video true
 audio-library-name p3openal_audio
 textures-power-2 none
 framebuffer-multisample 0
+depth-bits 24
 notify-level warning
 default-directnotify-level warning
 load-display pandagl
@@ -144,7 +145,7 @@ class App(ShowBase):
         DirectGuiGlobals.setDefaultClickSound(None); DirectGuiGlobals.setDefaultRolloverSound(None)
         DirectGuiGlobals.setDefaultFont(U.FONT_PLAIN) if U.FONT_PLAIN else None
         self.set_background_color(0.02, 0.025, 0.04, 1)
-        self.camLens.set_fov(70); self.camLens.set_near_far(0.2, 2400)
+        self.camLens.set_fov(70); self.camLens.set_near_far(0.3, 2400)   # v1.0.0.3: more depth precision (24-bit depth requested)
         self.campos = PTA_LVecBase3f.empty_array(1); self.campos_np = self.campos
         self.fogcol = Vec3(0.04, 0.05, 0.07); self.fogden = 0.0036
         self.envtex = self.loader.load_texture(Filename.from_os_specific(A("tex", "env.png")))

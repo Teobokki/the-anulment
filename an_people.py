@@ -191,16 +191,39 @@ def _tuck_skin(m):
 SKIN_AVG = {"ana": (0.725, 0.518, 0.406), "daniel": (0.707, 0.544, 0.459)}     # mean of skin_c / skin_c_daniel
 
 
-def _lod_hair(m, kind):
-    """v1.0.0.2: the decimated strand hair broke into spikes at a distance -> simple opaque hair shapes instead"""
+def _lod_hair(m, kind, base):
+    """v1.0.0.3: far-crowd figures: hair = opaque scalp shell built from the decimated head (+ a bob shape for the women),
+    the scalp under it and the body skin under the clothes are deleted (no shrinking, no overlapping layers)"""
     from fs_people import fix_uv
-    fix_uv(m)       # UVs in the default column, so the skin texture works under the character shader
+    import an_hair, an_cover
+    fix_uv(m)       # UVs in the default column
+    an_cover.cover(m, "lod_" + kind, base, tmax=0.05, col_r=0.035)      # first: the cache indexes the original skin
+    hr = m.find("**/hair")
+    from direct.showbase import ShowBaseGlobal
+    full = ShowBaseGlobal.base.loader.load_model(Filename.from_os_specific(os.path.join(base, "assets", "models", "%s.bam" % kind)))
+    an_hair.hair_shell(m, out=0.006, reach=0.02, parent=hr.get_parent(), hair_from=full)   # coverage from the full-detail hair
     for h in m.find_all_matches("**/hair"): h.remove_node()
-    if kind == "daniel":
-        bl = [(0.0, 0.035, 1.635, 0.098, 0.103, 0.072)]
-    else:
-        bl = [(0.0, 0.035, 1.635, 0.103, 0.104, 0.07), (0.0, 0.06, 1.55, 0.108, 0.075, 0.09)]
-    _att(m, blob_mesh("hair", bl, (1, 1, 1, 1)))
+    if kind != "daniel":
+        bl = (0.0, 0.065, 1.55, 0.112, 0.078, 0.092)
+        _att(m, blob_mesh("hair", [bl], (0.072, 0.029, 0.037, 1)))
+        _cull_inside(m, bl, 1.0)
+    an_cover.smooth_normals(m)
+
+
+def _cull_inside(m, bl, k):
+    """drop skin triangles whose centre is inside the (opaque) hair shape"""
+    import numpy as np
+    from an_cover import _tris, _verts
+    from panda3d.core import GeomTriangles, Geom
+    cx, cy, cz, rx, ry, rz = bl
+    for g in m.find_all_matches("**/+GeomNode"):
+        if not g.get_name().startswith("skin"): continue
+        V = _verts(g, m, 0); T = _tris(g.node().get_geom(0)); C = V[T].mean(1)
+        inside = ((C[:, 0] - cx) / (rx * k)) ** 2 + ((C[:, 1] - cy) / (ry * k)) ** 2 + ((C[:, 2] - cz) / (rz * k)) ** 2 < 1
+        if not inside.any(): continue
+        gm = g.node().modify_geom(0); tr = GeomTriangles(Geom.UH_static)
+        for x, y, z in T[~inside]: tr.add_vertices(int(x), int(y), int(z))
+        gm.clear_primitives(); gm.add_primitive(tr)
 
 
 # the LOD meshes keep Ana / Daniel's UVs in the glTF column 'texcoord.0'; the default stage reads 'texcoord'
@@ -212,7 +235,7 @@ def crowd_lod(game, rect, n, rnd, avoid=None, face=None):
     for k in ("daniel", "heroine"):
         if k not in _lod:
             _lod[k] = app.loader.load_model(Filename.from_os_specific(os.path.join(app.BASE, "assets", "models", "lod_%s.bam" % k)))
-            _lod[k].clear_texture(); _tuck_skin(_lod[k]); _lod_hair(_lod[k], k)
+            _lod[k].clear_texture(); _lod_hair(_lod[k], k, app.BASE)
     x0, y0, x1, y1 = rect; cnt = 0; tries = 0
     pl = game.world.T("placards.png", repeat=False); skt = {}
     signs = NodePath("signs"); lights = NodePath("lights")
@@ -249,7 +272,7 @@ def crowd_lod(game, rect, n, rnd, avoid=None, face=None):
     mt = Material("crowd"); mt.set_base_color((1, 1, 1, 1)); mt.set_roughness(0.7); mt.set_metallic(0.0)
     for r_, tx in ((root, False), (skinroot, True)):
         r_.set_material(mt, 10); r_.set_light_off(1); r_.flatten_strong()
-        fs_shaders.apply(r_, app, gloss=0.15, tex=tx, sheen=0.6); r_.set_two_sided(False)
+        fs_shaders.apply(r_, app, gloss=0.15, tex=tx, sheen=0.6); r_.set_two_sided(True)   # v1.0.0.3: the decimated meshes have mixed winding - culling punched holes in the clothes
     skinroot.reparent_to(root)
     lights.set_shader_off(2); lights.set_light_off(2); lights.flatten_strong(); lights.reparent_to(root)
     signs.set_texture(pl); signs.set_two_sided(True); signs.set_light_off(1); signs.set_shader_off(1); signs.set_color_scale(0.55, 0.55, 0.55, 1); signs.flatten_strong()
