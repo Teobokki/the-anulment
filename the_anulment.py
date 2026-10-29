@@ -3,7 +3,7 @@
 import os, sys, json, time, math, random, threading, tempfile, urllib.request, shutil, traceback
 
 APP_NAME = "THE ANULMENT"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.0.0.1"
 REPO = "Teobokki/the-anulment"
 UPDATE_URL = "https://raw.githubusercontent.com/%s/main/latest.json" % REPO
 RELEASES_URL = "https://github.com/%s/releases/latest" % REPO
@@ -108,7 +108,7 @@ def check_update():
 
 
 
-DEFAULT_SETTINGS = {"traffic": "normal", "master": 0.9, "sfx_volume": 0.8, "music_volume": 0.55, "voice_volume": 0.9, "quality": 1, "rain": True,
+DEFAULT_SETTINGS = {"traffic": "normal", "master": 0.9, "sfx_volume": 0.8, "music_volume": 0.55, "voice_volume": 0.9, "quality": 1,
                     "buttons": True, "subtitles": True, "fullscreen": False}
 FICTION = "All characters, parties, countries and events in this game are fictional."
 CREDITS = [
@@ -135,7 +135,7 @@ class App(ShowBase):
         self.disable_mouse()
         self.log_error = log_error
         self.settings = dict(DEFAULT_SETTINGS)
-        try: self.settings.update(json.load(open(os.path.join(DATA, "settings.json"), encoding="utf-8")))
+        try: self.settings.update(json.load(open(os.path.join(DATA, "settings.json"), encoding="utf-8"))); self.settings.pop("rain", None)
         except Exception: pass
         A = lambda *p: os.path.join(BASE, "assets", *p)
         self.jpfont = U.init_fonts(self.loader, A("ui_font.ttf"), A("ui_plain.ttf"), A("sym_font.ttf"))
@@ -155,12 +155,12 @@ class App(ShowBase):
         self.envday = self.loader.load_texture(Filename.from_os_specific(A("tex", "sky_day.jpg"))); self.render.set_shader_input("envday", self.envday)
         fog = Fog("fog"); fog.set_color(self.fogcol); fog.set_exp_density(self.fogden); self.render.set_fog(fog); self.fog = fog
         self._sfx = {}
-        for n in ("engine", "engine_low", "siren", "skid", "wind", "rain", "crash", "bump", "checkpoint", "beep", "go", "click",
+        for n in ("engine", "engine_low", "siren", "skid", "wind", "crash", "bump", "checkpoint", "beep", "go", "click",
                   "busted", "win", "heat", "horn", "door", "switch", "dial", "empty", "cheer"):
             try: self._sfx[n] = self.loader.load_sfx(Filename.from_os_specific(A("sfx", n + ".wav")))
             except Exception: pass
         self.loops = {}
-        for n in ("engine", "engine_low", "siren", "skid", "wind", "rain"):
+        for n in ("engine", "engine_low", "siren", "skid", "wind"):
             try:
                 s = self.loader.load_sfx(Filename.from_os_specific(A("sfx", n + ".wav"))); s.set_loop(True); s.set_volume(0); self.loops[n] = s
             except Exception: pass
@@ -243,17 +243,6 @@ class App(ShowBase):
         if self.win and hasattr(self.win, "request_properties"):
             self.win.request_properties(wp)
 
-    def rain_on(self, on):
-        if on and getattr(self, "rain_np", None) is None:
-            cm = CardMaker("rain"); cm.set_frame(-2, 2, -1, 1)
-            n = self.render2d.attach_new_node(cm.generate()); n.set_transparency(TransparencyAttrib.M_alpha)
-            t = self.loader.load_texture(Filename.from_os_specific(os.path.join(BASE, "assets", "tex", "streak.png")))
-            n.set_texture(t); n.set_tex_scale(TextureStage.get_default(), 9, 3); n.set_color(0.7, 0.8, 1.0, 0.18); n.set_bin("fixed", 5)
-            n.set_attrib(ColorBlendAttrib.make(ColorBlendAttrib.M_add, ColorBlendAttrib.O_incoming_alpha, ColorBlendAttrib.O_one))
-            self.rain_np = n
-        elif not on and getattr(self, "rain_np", None) is not None:
-            self.rain_np.remove_node(); self.rain_np = None
-
     def _setup_gamepad(self):
         try:
             devs = self.devices.get_devices(InputDevice.DeviceClass.gamepad)
@@ -333,7 +322,6 @@ class App(ShowBase):
         if game and not paused and game.police and game.heat:
             px, py = game.player_pos(); d = min(math.hypot(p.x - px, p.y - py) for p in game.police); siren = max(0.0, 1.0 - d / 140.0)
         if "siren" in L: L["siren"].set_volume(sv * 0.35 * siren)
-        if "rain" in L: L["rain"].set_volume(sv * 0.4 if self.settings.get("rain") and (game is None or not paused) else 0)
         for s in L.values():
             if s.status() != AudioSound.PLAYING: s.play()
 
@@ -344,12 +332,10 @@ class App(ShowBase):
         self.render.set_shader_input("dayk", 0.0); self.fog.set_color(self.fogcol); self.set_background_color(0.02, 0.025, 0.04, 1)
 
     def apply_quality(self):
-        self.rain_on(bool(self.settings.get("rain", True)))      # no bloom / glow at any quality
+        pass      # clear night: no rain, no bloom / glow at any quality
 
     def _frame(self, task):
         cam = self.camera.get_pos(self.render); self.campos.set_element(0, cam)
-        if getattr(self, "rain_np", None) is not None:
-            self.rain_np.set_tex_offset(TextureStage.get_default(), 0.15 * task.time, 2.2 * task.time)
         self._poll_pad()
         if self.flyover and self.world is not None and self.game is None:
             dt = min(0.05, self.clock.get_dt()); self.fly_t += dt
@@ -425,18 +411,15 @@ class App(ShowBase):
         except Exception: pass
         self.start_game()
 
-    def show_credits(self, end=False):
+    def show_credits(self):
         o = DirectFrame(parent=self.aspect2d, frameColor=(0, 0, 0, 0.88), frameSize=(-4, 4, -2, 2), state=DGG.NORMAL)
         U.panel(o, -1.2, 1.2, -0.9, 0.9)
-        U.text(o, "THE END - CHAPTER 1" if end else "CREDITS", (0, 0.78), 0.07, fg=U.PINK)
+        U.text(o, "CREDITS", (0, 0.78), 0.07, fg=U.PINK)
         z = 0.64
         for a, b in CREDITS:
             U.text(o, a, (0, z), 0.036, fg=U.CYAN if b else (1, 1, 1, 1)); z -= 0.055
             if b: U.text(o, b, (0, z), 0.03, font=U.FONT_PLAIN, wrap=70); z -= 0.075
-        if end:
-            U.text(o, "More chapters are coming in a future update. Free roam continues.", (0, z - 0.02), 0.032, font=U.FONT_PLAIN, fg=U.GOLD)
-            self.play_music("credits")
-        U.button(o, "CONTINUE" if end else "BACK", (0, -0.82), o.destroy, w=0.2, h=0.045, scale=0.04)
+        U.button(o, "BACK", (0, -0.82), o.destroy, w=0.2, h=0.045, scale=0.04)
 
     def start_game(self):
         self.task_mgr.remove("pp-pulse"); self.ignore("fs-anykey")
@@ -509,7 +492,6 @@ class App(ShowBase):
                 if after: after()
             b = U.button(o, "%s: %s" % (label, dict(opts).get(st.get(key), opts[0][1])), (0, z), f, w=0.45, h=0.042, scale=0.036)
         onoff = [(True, "ON"), (False, "OFF")]
-        cyc("Rain", "rain", onoff, 0.08, self.apply_quality)
         cyc("Subtitles", "subtitles", onoff, -0.03)
         cyc("On-screen buttons", "buttons", onoff, -0.14, lambda: self.game and (setattr(self.game, "btn_state", None), self.game.refresh_buttons()))
         cyc("Fullscreen", "fullscreen", onoff, -0.25, self.apply_fullscreen)

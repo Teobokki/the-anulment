@@ -33,7 +33,9 @@ def s_drive_shot():
 def s_story():
     g = app.game; g.toggle_phone(); g.exit_car(force=True); g.vb.clear()
     for _ in range(4): g.debug_skip()
-    print("stage", g.stage, "evidence", g.evidence, "ended", g.ended, flush=True)
+    print("stage", g.stage, "evidence", g.evidence, "published", g.published, "tip", g.tip, "cut", g.cut, flush=True)
+    me = g.me(); me.x, me.y = g.tip; me.sync(); g.after_photo("x"); g.rally_t = 0
+    print("posts", g.posts, "tip", g.tip, "news", g.news[-1], flush=True)
     g.add_heat(2)
     print('FPS', app.clock.get_average_frame_rate(), 'gtime', g.time, flush=True)
 def s_end():

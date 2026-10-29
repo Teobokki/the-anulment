@@ -1,5 +1,5 @@
 """THE ANULMENT: GLSL shaders (from the earlier EX Inc. game) for car paint and skin/cloth characters.
-Valdora grade: cool rainy night, sodium street light from above, filmic tone curve. No bloom, no glow."""
+Valdora grade: cool clear night (slightly damp streets), sodium street light from above, filmic tone curve. No bloom, no glow."""
 from panda3d.core import Shader
 
 VERT = """#version 120

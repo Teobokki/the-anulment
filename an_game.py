@@ -1,5 +1,5 @@
 """THE ANULMENT gameplay: MIYOYAZU in Valdora. Chapter 1 'The Annulled Vote' (investigation, protest, interview, evidence board,
-pressure meter, ending), traffic you can take (non-violently), police pursuit (follow + box in, no shooting), protest crowds with
+pressure meter, endless free roam with tips, rallies and news), traffic you can take (non-violently), police pursuit (follow + box in, no shooting), protest crowds with
 live chanting, EX IX G10 phone, T text chat spoken by the offline Romanian Piper voice, minimap + full map, save / load."""
 import math, os, random, time, json, threading
 from panda3d.core import (Point3, TextNode, CardMaker, TransparencyAttrib, Filename, Texture, SamplerState, AudioSound, NodePath)
@@ -25,7 +25,12 @@ CLUES = {   # id: (x, y, kind, label)
 AIDE = (-112.0, 150.0)       # prosecutors' aide (interview)
 EV_NAMES = {"ev_memo": "COURT MEMO", "ev_ballots": "TALLY SHEETS", "ev_email": "VALMONT EMAIL", "ev_recording": "AIDE INTERVIEW"}
 OBJ = ["Go to the protest outside the Constitutional Court", "Find evidence: photograph or recover 3 clues", "Interview the prosecutors' aide",
-       "Open the EVIDENCE BOARD (B) and publish the truth", "Free roam - the truth is out"]
+       "Open the EVIDENCE BOARD (B) and publish the truth", "Free roam: follow tips (?), photograph and post them, join the rallies"]
+TIP_NEWS = ["A reader's photo spreads online: more questions about the annulment.", "Your post is shared 40,000 times. TVV calls it 'disinformation'.",
+            "Students join the candle vigil after your latest post.", "The Coalition refuses to comment on the leaked photo.",
+            "Prosecutors' office 'reviewing' new images published by MIYOYAZU.", "Taxi drivers honk in support as the post goes viral."]
+RALLY_NEWS = ["RALLY: tens of thousands gather at the Constitutional Court - peaceful, with candles.", "RALLY: the diaspora marches in support of the second round.",
+              "RALLY: farmers drive tractors into Valdora, chanting TURUL DOI ÎNAPOI!", "RALLY: pensioners and students side by side outside the court."]
 RESTRICTED = [(20.0, 11.0, 80.0, 16.0, "COURT STEPS")]
 MESSAGES = [("IOANA (blogger)", "They annulled the vote. CLN won 61% and they just... erased it. Come to the court, everyone is going."),
             ("UNKNOWN NUMBER", "Look for a memo near the court steps. It was drafted BEFORE the hearing."),
@@ -63,7 +68,11 @@ class Game(Base):
         sd = save or {}
         self.stage = int(sd.get("stage", 0)); self.evidence = [e for e in sd.get("evidence", []) if e in EV_NAMES]
         self.pressure = float(sd.get("pressure", 0)); self.chat_hist = list(sd.get("chat", []))[-8:]; self.photos = list(sd.get("photos", []))
-        self.msgs = int(sd.get("msgs", 1)); self.ended = bool(sd.get("ended", False))
+        self.msgs = int(sd.get("msgs", 1)); self.published = bool(sd.get("published", sd.get("ended", False)))
+        if self.published: self.stage = max(self.stage, 4)
+        self.posts = int(sd.get("posts", 0)); self.news = [tuple(n) for n in sd.get("news", []) if isinstance(n, (list, tuple)) and len(n) == 2][-6:]
+        self.tip = tuple(sd["tip"]) if isinstance(sd.get("tip"), list) and len(sd["tip"]) == 2 else None
+        self.tip_t = 5.0; self.rally_t = float(sd.get("rally_t", 120.0)); self.swell = 0.0
         self.cars = []; self.peds = []; self.police = []; self.cops = []; self.paused = False; self.overlay = None; self.phone = None
         self.heat = 0; self.heat_t = 0.0; self.escape_t = 0.0; self.bust_t = 0.0; self.cam_mode = 0; self.vb = {}
         self.cam_yaw = SPAWN[2]; self.cam_pos = None; self.shake = 0.0; self.sub_t = 0.0; self.cinematic = 0.0; self.lb_on = False; self.lb_k = 0.0
@@ -166,9 +175,11 @@ class Game(Base):
         a = self.app
         for k, f in (("f", self.key_f), ("e", self.key_e), ("c", self.key_c), ("r", self.key_r), ("h", self.key_h), ("m", self.toggle_map),
                      ("t", self.open_chat), ("p", self.toggle_phone), ("escape", self.key_esc), ("b", self.toggle_board), ("l", self.key_lights),
-                     ("enter", self.key_enter), ("space", self.key_space), ("f9", self.debug_skip), ("1", lambda: self.key_num(0)),
+                     ("enter", self.key_enter), ("space", self.key_space), ("1", lambda: self.key_num(0)),
                      ("2", lambda: self.key_num(1)), ("3", lambda: self.key_num(2))):
             a.accept(k, self._guard(f, k))
+        import sys
+        if os.environ.get("AN_DEBUG") and not getattr(sys, "frozen", False): a.accept("f9", self.debug_skip)      # dev builds only
 
     def _guard(self, f, k):
         def h():
@@ -264,19 +275,23 @@ class Game(Base):
             if not left: self.stage = 2; return self.update_objective()
             x, y = self.player_pos(); c = min(left, key=lambda k: math.hypot(CLUES[k][0] - x, CLUES[k][1] - y)); tgt = CLUES[c][:2]
         elif self.stage == 2: tgt = AIDE
+        elif self.stage >= 4: tgt = self.tip
         self.objective = tgt
         self.markers = [{"id": "obj", "x": tgt[0], "y": tgt[1], "name": "OBJECTIVE", "col": (1.0, 0.82, 0.3), "kind": "obj"}] if tgt else []
         self.pois = [{"id": "zone", "x": PROTEST["c"][0], "y": PROTEST["c"][1], "name": "PROTEST", "col": (1.0, 0.55, 0.25), "kind": "zone"}]
         if self.stage >= 1:
             self.pois += [{"id": c, "x": v[0], "y": v[1], "name": v[3], "col": (0.6, 1.0, 0.6), "kind": "clue"} for c, v in CLUES.items() if c not in self.evidence]
-        if hasattr(self, "obj_t"): self.obj_t.setText("CHAPTER 1  -  THE ANNULLED VOTE\n" + OBJ[self.stage])
+        if self.stage >= 4 and self.tip:
+            self.pois.append({"id": "tip", "x": self.tip[0], "y": self.tip[1], "name": "TIP", "col": (0.6, 1.0, 0.6), "kind": "clue"})
+        if hasattr(self, "obj_t"):
+            self.obj_t.setText(("VALDORA  -  POSTS %d" % self.posts if self.stage >= 4 else "CHAPTER 1  -  THE ANNULLED VOTE") + "\n" + OBJ[self.stage])
         if hasattr(self, "mm_icons"): self.rebuild_mm_icons()
 
     def advance(self):
         if self.stage == 0: self.stage = 1; self.start_cut("arrest"); self.msgs = max(self.msgs, 4)
         elif self.stage == 1: self.stage = 2
         elif self.stage == 2: self.stage = 3; self.msgs = 5
-        elif self.stage == 3: self.ending()
+        elif self.stage == 3: self.publish_truth()
         self.update_objective(); self.save()
 
     def add_evidence(self, cid):
@@ -362,8 +377,8 @@ class Game(Base):
             else:
                 DirectFrame(parent=o, frameColor=(0.2, 0.15, 0.1, 0.6), frameSize=(-0.3, 0.3, -0.225, 0.225), pos=(x, 0, y)); U.text(o, "? missing", (x, y), 0.04)
         U.text(o, "Links: memo + email + ledger of orders from VALMONT -> Reform Alliance & the Coalition -> court, prosecutors, state TV.", (0, -0.7), 0.03, font=U.FONT_PLAIN, wrap=70)
-        if len(self.evidence) >= 4 and self.stage >= 3 and not self.ended:
-            U.button(o, "PUBLISH THE TRUTH", (0.0, -0.82), lambda: (self.toggle_board(), self.ending()), w=0.34, h=0.05, scale=0.04, edge=(1, 0.8, 0.3, 1))
+        if len(self.evidence) >= 4 and self.stage == 3 and not self.published:
+            U.button(o, "PUBLISH THE TRUTH", (0.0, -0.82), lambda: (self.toggle_board(), self.publish_truth()), w=0.34, h=0.05, scale=0.04, edge=(1, 0.8, 0.3, 1))
         U.button(o, "CLOSE", (1.1, 0.75), self.toggle_board, w=0.12, h=0.04, scale=0.03, hint="B")
         self.refresh_buttons()
 
@@ -388,18 +403,6 @@ class Game(Base):
                      (8.5, "family", None, ("His wife Elena and their children watch from the barrier.", ""), None),
                      (12.0, "crowd", None, ("The crowd answers.", "CLN PREȘEDINTE!  -  TURUL DOI ÎNAPOI!"), "protest")]
             self.cut = {"shots": shots, "t": 0.0, "i": -1, "next": 0.0, "end": 16.0, "which": which}
-            self.cheer()
-        elif which == "ending":
-            if not getattr(self, "cln", None): self.cln = AP.make_cln(self, 50, 9.0, 180)
-            self.cln.x, self.cln.y, self.cln.h = 50, 8.0, 200; self.cln.sync()
-            fam = [AP.make_family(self, "wife", 51.4, 7.5, 160), AP.make_family(self, "son", 52.6, 7.8, 170), AP.make_family(self, "daughter", 48.5, 7.6, 190)]
-            for p in fam: p.sync()
-            self.cut_people = getattr(self, "cut_people", []) + fam
-            shots = [(0.0, "orbit", None, ("THE TRUTH COMES OUT", "Your post reaches millions: the memo, the tally sheets, the Valmont email, the recording."), "finale"),
-                     (5.0, "crowd", None, ("Valdora fills its squares - peacefully, with candles.", "CLN PREȘEDINTE!  TURUL DOI ÎNAPOI!"), None),
-                     (10.0, "cln", None, ("Three days later the charges collapse.", "CLN walks free - and the second round is restored."), None),
-                     (15.0, "family", None, ("ENDING: THE PEOPLE'S VOTE", "Thank you for playing chapter 1 of THE ANULMENT."), "credits")]
-            self.cut = {"shots": shots, "t": 0.0, "i": -1, "next": 0.0, "end": 21.0, "which": which}
             self.cheer()
         self.refresh_buttons()
 
@@ -439,13 +442,40 @@ class Game(Base):
             if getattr(self, "cln", None): self.cln.destroy(); self.cln = None
             self.cut_people = self.cut_people[2:]
             self.toast("New messages on your EX IX G10 (P)", 4)
-        if c["which"] == "ending":
-            self.ended = True; self.stage = 4; self.update_objective(); self.save(); self.app.show_credits(end=True)
         self.app.play_music("city"); self.refresh_buttons()
 
-    def ending(self):
-        if self.ended: return
-        self.start_cut("ending")
+    def publish_truth(self):
+        """PUBLISH THE TRUTH: no ending - the news and the streets react, the chant swells, free roam goes on forever"""
+        if self.published: return
+        self.published = True; self.stage = 4; self.msgs = 5
+        self.add_news("VALDORA FREE BLOG", "MIYOYAZU publishes the memo, the tally sheets, the Valmont email and the aide's recording.")
+        self.add_news("TVV STATE NEWS", "State TV interrupts its programme: 'unverified documents' circulate online.")
+        self.caption("THE TRUTH IS OUT", "Your post reaches millions. Valdora answers in the streets.", 5.0)
+        self.swell = 40.0; self.cheer(); self.app.sfx("checkpoint", 0.8)
+        self.new_tip(); self.update_objective(); self.save()
+
+    def add_news(self, src, txt):
+        self.news = (self.news + [(src, txt)])[-6:]
+
+    def new_tip(self):
+        """endless side activity: a new spot to photograph and post (somewhere on the sidewalks of Valdora)"""
+        pts = [pt for lp in self.world.ped_loops for pt in lp if abs(pt[0]) < 420 and abs(pt[1]) < 420]
+        x, y = self.player_pos()
+        far = [pt for pt in pts if 60 < math.hypot(pt[0] - x, pt[1] - y) < 260] or pts
+        self.tip = tuple(float(v) for v in random.choice(far)); self.toast("NEW TIP on your EX IX G10: something to photograph (?)", 4)
+        self.update_objective()
+
+    def update_side(self, dt):
+        """endless free roam: tips to photograph + post, and random protest rallies with the chant swelling"""
+        self.swell = max(0.0, self.swell - dt)
+        if self.stage < 1 or self.cut: return
+        self.rally_t -= dt
+        if self.rally_t <= 0:
+            self.rally_t = random.uniform(150, 260); self.swell = 30.0
+            txt = random.choice(RALLY_NEWS); self.add_news("VALDORA FREE BLOG", txt); self.toast(txt, 5); self.cheer()
+        if self.stage >= 4 and self.tip is None:
+            self.tip_t -= dt
+            if self.tip_t <= 0: self.new_tip()
 
     def cheer(self):
         self.app.sfx("cheer", 0.9)
@@ -544,7 +574,7 @@ class Game(Base):
             btn("BACK", lambda: self.phone_screen("home"), 0.95)
         elif which == "news":
             W("NEWS", 0.15, 0.045, fg=self.accent())
-            for k, (src, txt) in enumerate(NEWS):
+            for k, (src, txt) in enumerate((list(reversed(self.news)) + NEWS)[:4]):
                 W(src, 0.24 + k * 0.16, 0.026, fg=(1, 0.5, 0.45, 1) if "TVV" in src else (0.5, 1, 0.6, 1)); W(txt, 0.27 + k * 0.16, 0.021, wrap=19)
             btn("BACK", lambda: self.phone_screen("home"), 0.95)
         elif which == "evidence":
@@ -563,9 +593,13 @@ class Game(Base):
         Base.add_photo(self, path); self.after_photo(path)
 
     def after_photo(self, path):
-        """photos of clues count as evidence"""
+        """photos of clues count as evidence; in free roam a photo of a tip is posted"""
         if self.stage < 1: return
         x, y = self.player_pos()
+        if self.stage >= 4 and self.tip and math.hypot(self.tip[0] - x, self.tip[1] - y) < 12:
+            self.posts += 1; self.tip = None; self.tip_t = 20.0
+            self.add_news("VALDORA FREE BLOG", random.choice(TIP_NEWS)); self.toast("POSTED  -  %d posts. The crowd grows." % self.posts, 4)
+            self.swell = max(self.swell, 15.0); self.cheer(); self.update_objective(); self.save(); return
         for cid, (cx, cy, kind, lbl) in CLUES.items():
             if kind == "photo" and cid not in self.evidence and math.hypot(cx - x, cy - y) < 9:
                 self.add_evidence(cid); return
@@ -696,6 +730,7 @@ class Game(Base):
                     pr = "[E] RECOVER THE EMAILS" if kind == "recover" else "CLUE: take a photo with the phone CAMERA"
             if self.stage >= 2 and math.hypot(AIDE[0] - px, AIDE[1] - py) < 3.5 and "ev_recording" not in self.evidence: pr = "[E] INTERVIEW THE AIDE"
             if self.stage == 0 and math.hypot(px - PROTEST["c"][0], py - PROTEST["c"][1]) < 30: pr = "[E] JOIN THE PROTEST"
+            if self.stage >= 4 and self.tip and math.hypot(self.tip[0] - px, self.tip[1] - py) < 12: pr = "TIP: take a photo with the phone CAMERA to post it"
             if not pr and any(math.hypot(o.x - me.x, o.y - me.y) < o.spec["hl"] + 2.3 for o in self.cars_near(me.x, me.y, 8)): pr = "[F] TAKE VEHICLE"
         self.prompt.setText(pr)
         self.refresh_buttons()
@@ -768,7 +803,8 @@ class Game(Base):
 
     def update_audio_local(self, dt):
         x, y = self.player_pos(); d = math.hypot(x - PROTEST["c"][0], y - PROTEST["c"][1])
-        v = max(0.0, min(1.0, 1.15 - d / 140.0)) * self.app.vol("sfx_volume") * (0.0 if self.paused else 1.0)
+        sw = min(1.0, self.swell / 10.0)        # rallies / PUBLISH: the chant swells and carries further
+        v = max(0.0, min(1.0, 1.15 + 0.35 * sw - d / (140.0 + 160.0 * sw))) * self.app.vol("sfx_volume") * (0.0 if self.paused else 1.0)
         self.chant.set_volume(v)
         p = self.app.cam.get_relative_point(self.app.render, Point3(PROTEST["c"][0], PROTEST["c"][1], 2))
         self.chant.set_balance(max(-0.8, min(0.8, p.x / max(5.0, abs(p.y) + 5))))
@@ -798,7 +834,7 @@ class Game(Base):
         self.world.update(dt, self.time)
         if not self.cut: self.update_camera(dt)
         self.update_camapp(dt); self.update_hud(dt); self.update_audio_local(dt); self.app.update_audio(self, dt)
-        self.update_tts(); self.poll_tts()
+        self.update_tts(); self.poll_tts(); self.update_side(dt)
         self.pressure = max(0.0, self.pressure - dt * 0.15)
         self.save_t = getattr(self, "save_t", 30.0) - dt
         if self.save_t <= 0: self.save_t = 30.0; self.save()
@@ -818,7 +854,8 @@ class Game(Base):
     def save(self):
         me = self.me()
         d = {"stage": self.stage, "evidence": self.evidence, "pressure": round(self.pressure, 1), "chat": self.chat_hist[-8:], "photos": self.photos[-50:],
-             "msgs": self.msgs, "ended": self.ended, "pos": [round(me.x, 2), round(me.y, 2), round(me.h, 1)] if self.pcar is None and self.cut is None else list(SPAWN),
+             "msgs": self.msgs, "published": self.published, "posts": self.posts, "news": [list(n) for n in self.news],
+             "tip": list(self.tip) if self.tip else None, "rally_t": round(self.rally_t, 1), "pos": [round(me.x, 2), round(me.y, 2), round(me.h, 1)] if self.pcar is None and self.cut is None else list(SPAWN),
              "version": self.app.VERSION}
         try: self.app.write_save(d)
         except Exception as e: self.app.log_error(e)

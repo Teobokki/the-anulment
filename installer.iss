@@ -1,4 +1,4 @@
-#define MyVer "1.0.0"
+#define MyVer "1.0.0.1"
 [Setup]
 AppId={{B4D27E19-6A3C-4F85-9E1D-52A7C0F3D861}
 AppName=THE ANULMENT

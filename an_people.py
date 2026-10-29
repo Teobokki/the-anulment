@@ -13,6 +13,29 @@ def _att(parent, n):
     if isinstance(n, NodePath): n.reparent_to(parent); return n
     return parent.attach_new_node(n)
 
+# natural skin-tone variety: separate copies of the SAME Ana / Daniel skin textures (texture data, no shader tint on the skin)
+TONES = [("", (1.0, 1.0, 1.0)), ("_t1", (0.88, 0.80, 0.70)), ("_t2", (0.66, 0.53, 0.43)), ("_t3", (0.48, 0.37, 0.30))]
+
+
+def skin_tex_name(who, k):
+    return ("skin_c_daniel" if who == "daniel" else "skin_c") + TONES[k][0] + ".png"
+
+
+def skin_tone(p, k, arms=True):
+    """give a full character one of the natural skin tones; the skin keeps Ana / Daniel's realistic skin shading, untinted"""
+    from fs_people import tex, HAND_TINT
+    app = p.app; m = p.model; t = tex(app, skin_tex_name(p.who, k)); f = TONES[k][1]
+    nodes = [m.find("**/skin")] + ((list(m.find_all_matches("**/arm*/**/+GeomNode")) + list(m.find_all_matches("**/fore*/**/+GeomNode"))) if arms else [])
+    for n in nodes:
+        if n.is_empty(): continue
+        nm = str(n)
+        if "sleeve" in nm or "fingers" in nm or "fist" in nm or "tank" in nm: continue
+        n.set_texture(t, 3); n.set_shader_input("tint", (1, 1, 1, 1), 3)
+    hb = HAND_TINT if p.who != "daniel" else (1, 1, 1, 1)
+    for n in list(m.find_all_matches("**/fingers*")) + list(m.find_all_matches("**/fist*")):   # untextured hands match the skin
+        n.set_shader_input("tint", (hb[0] * f[0], hb[1] * f[1], hb[2] * f[2], 1), 3)
+    p.skin_k = k
+
 
 def style(p, top, bottom, hair, tone=None, slim=1.0, scale=1.0, morph=None, sleeves=False):
     m = p.model
@@ -61,7 +84,7 @@ def make_miyo(game, x, y, h):
 def make_cln(game, x, y, h):
     """CLN: older, dignified family man - grey hair, dark coat"""
     p = Person(game, "daniel", x, y, h)
-    style(p, (0.13, 0.14, 0.13), (0.12, 0.12, 0.13), (2.6, 2.6, 2.7), tone=(1.02, 0.98, 0.95, 1), morph=(1.04, 1.02, 1.0, 1.07), sleeves=True)
+    style(p, (0.13, 0.14, 0.13), (0.12, 0.12, 0.13), (2.6, 2.6, 2.7), morph=(1.04, 1.02, 1.0, 1.07), sleeves=True)
     add_blob(p, "collar", [(0, -0.02, 1.42, 0.16, 0.12, 0.05)], (0.85, 0.85, 0.88, 1))
     return p
 
@@ -81,8 +104,9 @@ def make_cop(game, x, y, h, female=None, riot=False, rnd=None):
     female = (rnd.random() < 0.4) if female is None else female
     p = Person(game, "ana" if female else "daniel", x, y, h)
     k = rnd.uniform(-1, 1)
-    style(p, (0.06, 0.09, 0.2), (0.05, 0.07, 0.15), (0.6 + 0.4 * rnd.random(),) * 3, tone=(1 + 0.04 * k, 1 + 0.03 * k, 1 + 0.03 * k, 1),
+    style(p, (0.06, 0.09, 0.2), (0.05, 0.07, 0.15), (0.6 + 0.4 * rnd.random(),) * 3,
           morph=(rnd.uniform(0.96, 1.06), rnd.uniform(0.97, 1.04), rnd.uniform(0.98, 1.03), rnd.uniform(0.95, 1.08)), sleeves=True)
+    skin_tone(p, rnd.choice((0, 0, 1, 1, 2, 3)), arms=False)
     z0 = 1.16 if not female else 1.13
     band = MB("hiviz"); r = 0.19 if not female else 0.17
     for a in range(16):
@@ -113,7 +137,8 @@ def make_protester(game, x, y, h, rnd):
     k = rnd.uniform(-1, 1)
     style(p, rnd.choice([(0.35, 0.12, 0.12), (0.15, 0.2, 0.35), (0.3, 0.3, 0.32), (0.45, 0.38, 0.25), (0.12, 0.25, 0.18), (0.6, 0.55, 0.5)]),
           rnd.choice([(0.1, 0.12, 0.2), (0.15, 0.15, 0.16), (0.3, 0.28, 0.24)]), rnd.choice([(0.5, 0.45, 0.4), (1.4, 1.0, 0.7), (2.4, 2.4, 2.5), (0.9, 0.6, 0.4)]),
-          tone=(1 + 0.04 * k, 1 + 0.035 * k, 1 + 0.04 * k, 1), morph=(rnd.uniform(0.95, 1.07), rnd.uniform(0.97, 1.04), rnd.uniform(0.97, 1.03), rnd.uniform(0.94, 1.08)))
+          morph=(rnd.uniform(0.95, 1.07), rnd.uniform(0.97, 1.04), rnd.uniform(0.97, 1.03), rnd.uniform(0.94, 1.08)))
+    skin_tone(p, rnd.choice((0, 0, 1, 1, 2, 3)))
     p.prop_kind = rnd.choice(["placard", "placard", "flag", "phone", "candle"])
     hand = p.handR if not p.handR.is_empty() else p.model
     if p.prop_kind in ("placard", "flag"):
@@ -136,31 +161,59 @@ def make_protester(game, x, y, h, rnd):
 
 
 _lod = {}
+
+
+def _tuck_skin(m):
+    """the decimated body skin sits under the decimated clothes: pull it in below the neck so it never pokes through"""
+    from panda3d.core import GeomVertexRewriter
+    g = m.find("**/skin")
+    if g.is_empty(): return
+    if g.node().get_type().get_name() != "GeomNode": g = g.find("**/+GeomNode")
+    gn = g.node()
+    for i in range(gn.get_num_geoms()):
+        vd = gn.modify_geom(i).modify_vertex_data(); rw = GeomVertexRewriter(vd, "vertex")
+        while not rw.is_at_end():
+            v = rw.get_data3()
+            if v[2] < 1.36: rw.set_data3(v[0] * 0.86, v[1] * 0.86 + 0.0, v[2])
+            else: rw.set_data3(v)
+# the LOD meshes keep Ana / Daniel's UVs in the glTF column 'texcoord.0'; the default stage reads 'texcoord'
+from panda3d.core import TextureStage, InternalName
+_SKIN_TS = TextureStage("skin_lod"); _SKIN_TS.set_texcoord_name(InternalName.get_texcoord_name("0"))
 def crowd_lod(game, rect, n, rnd, avoid=None, face=None):
     """far crowd: n decimated characters, coloured per part, flattened into a single static node (one draw call per state)"""
     app = game.app; root = NodePath("crowd")
     for k in ("daniel", "heroine"):
         if k not in _lod:
             _lod[k] = app.loader.load_model(Filename.from_os_specific(os.path.join(app.BASE, "assets", "models", "lod_%s.bam" % k)))
-            _lod[k].clear_texture(); _lod[k].set_texture_off(1)
+            _lod[k].clear_texture(); _tuck_skin(_lod[k])
     x0, y0, x1, y1 = rect; cnt = 0; tries = 0
-    pl = game.world.T("placards.png", repeat=False)
+    pl = game.world.T("placards.png", repeat=False); skt = {}
     signs = NodePath("signs")
     while cnt < n and tries < n * 6:
         tries += 1
         x, y = rnd.uniform(x0, x1), rnd.uniform(y0, y1)
         if avoid and any(a[0] <= x <= a[2] and a[1] <= y <= a[3] for a in avoid): continue
-        m = _lod[rnd.choice(("daniel", "heroine"))].copy_to(root)
+        kind = rnd.choice(("daniel", "heroine")); m = _lod[kind].copy_to(root)
         h = (math.degrees(math.atan2(-(face[0] - x), face[1] - y)) if face else rnd.uniform(0, 360)) + rnd.uniform(-25, 25) + 180
         m.set_pos(x, y, game.world.ground_z(x, y)); m.set_h(h); s = rnd.uniform(0.92, 1.05); m.set_scale(s)
         dk = 0.55
         tone = rnd.choice([(0.85, 0.66, 0.55), (0.78, 0.6, 0.48), (0.9, 0.72, 0.62), (0.7, 0.52, 0.42)])
         top = rnd.choice([(0.35, 0.12, 0.12), (0.15, 0.2, 0.35), (0.3, 0.3, 0.32), (0.45, 0.38, 0.25), (0.12, 0.25, 0.18), (0.6, 0.55, 0.5), (0.08, 0.08, 0.09)])
         bot = rnd.choice([(0.1, 0.12, 0.2), (0.15, 0.15, 0.16), (0.3, 0.28, 0.24)]); hair = rnd.choice([(0.08, 0.06, 0.05), (0.3, 0.2, 0.12), (0.55, 0.55, 0.56), (0.15, 0.1, 0.07)])
+        tk = rnd.choice((0, 0, 1, 1, 2, 3)); f = TONES[tk][1]; who = "daniel" if kind == "daniel" else "ana"
+        stex = skt.get((who, tk))
+        if stex is None:
+            from fs_people import tex as _tex
+            stex = skt[(who, tk)] = _tex(app, skin_tex_name(who, tk))
         for c in m.find_all_matches("**/+GeomNode"):
-            nm = c.get_name()
-            col = hair if "hair" in nm else top if ("tank" in nm or "sleeve" in nm or "belt" in nm) else bot if ("trouser" in nm or "leg" in nm) else tone
-            c.set_color(col[0] * dk, col[1] * dk, col[2] * dk, 1, 1)
+            nm = c.get_name(); pn = c.get_parent().get_name()
+            if nm.startswith("skin"):          # textured skin, untinted (night exposure only)
+                c.set_texture(_SKIN_TS, stex, 3); c.set_color(dk * 1.25, dk * 1.25, dk * 1.25, 1, 3)
+                continue
+            if "fingers" in nm:
+                c.set_texture_off(3); c.set_color(0.86 * f[0] * dk * 1.25, 0.68 * f[1] * dk * 1.25, 0.58 * f[2] * dk * 1.25, 1, 3); continue
+            col = hair if "hair" in nm else top if ("tank" in nm or "sleeve" in nm or "belt" in nm) else bot
+            c.set_texture_off(3); c.set_color(col[0] * dk, col[1] * dk, col[2] * dk, 1, 3)
         if rnd.random() < 0.18:      # placard over the heads
             cm = CardMaker("pl"); i = rnd.randrange(4); cm.set_frame(-0.32, 0.32, 1.75, 2.3); cm.set_uv_range((i / 4.0, 0), ((i + 1) / 4.0, 1))
             q = signs.attach_new_node(cm.generate()); q.set_pos(x, y, 0); q.set_h(h + 180)
