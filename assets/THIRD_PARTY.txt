@@ -1,0 +1,27 @@
+THE ANULMENT - third-party components and licences
+©2026 EX Inc./HYPERION DIGITAL ©2026. All characters, parties, countries and events in this game are fictional.
+
+Engine: Panda3D (https://www.panda3d.org/) - Modified BSD licence, Copyright (c) Carnegie Mellon University / Disney.
+
+Text-to-speech: Piper (https://github.com/rhasspy/piper), release 2023.11.14-2 - MIT licence:
+  Copyright (c) 2022 Michael Hansen
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation
+  files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy,
+  modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software
+  is furnished to do so, subject to the following conditions: The above copyright notice and this permission notice shall be
+  included in all copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
+  Piper bundles espeak-ng (GPL-3.0, https://github.com/espeak-ng/espeak-ng; source available there) and ONNX Runtime (MIT).
+  The piper binaries are run as a separate program (piper/piper.exe).
+
+Voice model: ro_RO-mihai-medium (Piper voices, https://huggingface.co/rhasspy/piper-voices) - dataset and model released CC0 1.0
+  (public domain dedication; OHF-Voice voice-datasets), fine-tuned from the lessac medium checkpoint. assets/voice/*.
+
+Music: original compositions by EX Inc. ("Indila-style" orchestral-pop pastiche, no existing melodies copied), rendered with
+  FluidSynth (LGPL-2.1, used as a tool only, not bundled) and the FluidR3_GM SoundFont by Frank Wen (MIT licence).
+  Choir chants ("CLN PREȘEDINTE!", "TURUL DOI ÎNAPOI!") synthesised with Piper + the ro_RO-mihai-medium voice (CC0).
+
+Fonts: Exo 2 (assets/ui_font.ttf, assets/ui_plain.ttf) - SIL Open Font License 1.1, Copyright 2013 The Exo 2 Project Authors.
+  DejaVu Sans (assets/sym_font.ttf) - Bitstream Vera / DejaVu fonts licence (free to use, modify and redistribute).
+
+Start screen / icon artwork: supplied by EX Inc.
+Everything else (city, vehicles, characters, textures, sound effects) is original procedural work by EX Inc.

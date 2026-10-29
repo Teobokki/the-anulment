@@ -1,0 +1,8 @@
+build/
+build_onefile/
+dist/
+dist_onefile/
+__pycache__/
+*.log
+piper_win/
+test/out/
