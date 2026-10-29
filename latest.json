@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0.3",
-  "release_url": "https://github.com/Teobokki/the-anulment/releases/tag/v1.0.0.3",
-  "url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.3/THE-ANULMENT-Setup-1.0.0.3.exe",
-  "installer_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.3/THE-ANULMENT-Setup-1.0.0.3.exe",
-  "full_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.3/THE-ANULMENT-1.0.0.3-Windows-x64.zip",
-  "portable_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.3/THE-ANULMENT-Portable.exe",
-  "notes": "Fixes skin showing through T-shirts, tank tops, sleeves and hair on pedestrians and protesters. Smoother crowd shading and a more precise depth buffer. Per-user, no admin."
+  "version": "1.0.0.4",
+  "release_url": "https://github.com/Teobokki/the-anulment/releases/tag/v1.0.0.4",
+  "url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.4/THE-ANULMENT-Setup-1.0.0.4.exe",
+  "installer_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.4/THE-ANULMENT-Setup-1.0.0.4.exe",
+  "full_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.4/THE-ANULMENT-1.0.0.4-Windows-x64.zip",
+  "portable_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.4/THE-ANULMENT-Portable.exe",
+  "notes": "Real character fix: everyone near you is a full FIREOUT SHINE-quality character (same models, skin and hair); distant crowd rendered from those characters with distance fog. No skin or hair tints. Per-user, no admin."
 }
