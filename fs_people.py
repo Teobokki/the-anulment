@@ -36,9 +36,7 @@ def load(app, who, outfit="default"):
         if not os.path.exists(p): p = os.path.join(app.BASE, "assets", "models", BAM.get(who, "heroine") + ".bam"); outfit = "default"
         if who != "ana" and not os.path.exists(p):
             p = os.path.join(app.BASE, "assets", "models", "heroine.bam")
-        m = app.loader.load_model(Filename.from_os_specific(p)); fix_uv(m)
-        import an_hair; an_hair.prepare(m, key, app.BASE)     # v1.0.0.2: solid hair shell + clothes over the skin
-        _models[key] = m
+        m = app.loader.load_model(Filename.from_os_specific(p)); fix_uv(m); _models[key] = m
     return _models[key].copy_to(NodePath(who))
 
 
@@ -147,8 +145,7 @@ class Person:
                 if not n.is_empty(): n.set_texture_off(2); n.set_shader_input("use_tex", 0.0)
             tops = [c for c in PED_TOPS if max(c) > 0.3] + [(0.55, 0.62, 0.7), (0.95, 0.55, 0.45), (0.4, 0.3, 0.25), (0.92, 0.9, 0.8)]
             bottoms = [c for c in PED_BOTTOMS if not (c[0] > 0.4 and c[1] < 0.2)] + [(0.22, 0.32, 0.5), (0.35, 0.35, 0.38)]
-            import an_hair      # v1.0.0.2: real hair colours (black / browns / auburn / blonde / grey) on both models
-            hairs = [an_hair.hair_tint(base, h)[:3] for h in an_hair.EVERYDAY_HAIR]
+            hairs = [h for h in PED_HAIR if h != (1, 1, 1)]
             hr_ = m.find("**/hair")
             if not hr_.is_empty():
                 v = rnd.random()                 # different hair silhouettes: fuller, cropped or a bun
@@ -159,7 +156,7 @@ class Person:
                     if v < 0.35: hscale(1.06, 1.12, 1.03)
                     elif v < 0.65:
                         from fs_miyo import blob_mesh
-                        bun = m.attach_new_node(blob_mesh("bun", [(-0.012, 0.16, 1.64, 0.055, 0.05, 0.05), (-0.012, 0.13, 1.66, 0.045, 0.04, 0.04)], (0.072, 0.029, 0.037, 1)))
+                        bun = m.attach_new_node(blob_mesh("bun", [(-0.012, 0.16, 1.64, 0.055, 0.05, 0.05), (-0.012, 0.13, 1.66, 0.045, 0.04, 0.04)], (0.06, 0.05, 0.045, 1)))
                         bun.reparent_to(hr_.get_parent()); bun.set_name("hair_bun"); fs_shaders.apply(bun, app, gloss=0.35, sheen=0.3); hscale(0.98, 0.96, 1.0)
                 else:
                     if v < 0.4: hscale(1.05, 1.08, 1.08)
@@ -183,18 +180,13 @@ class Person:
                     for lg in (self.legL, self.legR):          # the trouser legs - shoes keep their colour
                         if not lg.is_empty(): recolor(lg, c, only=lambda b, ob=ob: abs(b[0] - ob[0]) + abs(b[1] - ob[1]) + abs(b[2] - ob[2]) < 0.06)
                     continue
-                n.set_shader_input("tint", c + (1,))
-                if nm == "hair":
-                    bn = m.find("**/hair_bun")
-                    if not bn.is_empty(): bn.set_shader_input("tint", c + (1,))
+                if nm == "hair": continue      # v1.0.0.4: hair keeps FIREOUT SHINE's own colour (no tint)
             sc = rnd.uniform(0.94, 1.04); m.set_scale(sc)
             # v1.0.4: NPCs share ANA's realistic skin (same skin_c / skin_n maps + skin shading); only a slight natural
             # tone variation per person so nobody looks cloned
             k = rnd.uniform(-1, 1); w = rnd.uniform(-1, 1)
             tone = (1.0 + 0.03 * k + 0.02 * w, 1.0 + 0.035 * k, 1.0 + 0.04 * k - 0.03 * w, 1)
-            for n in [m.find("**/skin")] + list(m.find_all_matches("**/arm*")) + list(m.find_all_matches("**/fore*")) + \
-                     list(m.find_all_matches("**/fingers*")) + list(m.find_all_matches("**/fist*")):
-                if not n.is_empty() and "sleeve" not in n.get_name(): n.set_shader_input("tint", tone)
+            # v1.0.0.4: no skin tint - the skin is exactly ANA's / DANIEL's (tone kept only so the random sequence is unchanged)
 
     def walk_anim(self, dt, speed):
         if self.knock > 0:

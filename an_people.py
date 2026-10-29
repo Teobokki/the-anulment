@@ -22,6 +22,11 @@ def skin_tex_name(who, k):
 
 
 def skin_tone(p, k, arms=True):
+    """v1.0.0.4: skin is exactly ANA's / DANIEL's FIREOUT SHINE skin (no tone variants, no tint)"""
+    p.skin_k = 0
+
+
+def _skin_tone_old(p, k, arms=True):
     """give a full character one of the natural skin tones; the skin keeps Ana / Daniel's realistic skin shading, untinted"""
     from fs_people import tex, HAND_TINT
     app = p.app; m = p.model; t = tex(app, skin_tex_name(p.who, k)); f = TONES[k][1]
@@ -62,9 +67,7 @@ def style(p, top, bottom, hair, tone=None, slim=1.0, scale=1.0, morph=None, slee
         for lg in (p.legL, p.legR):
             if not lg.is_empty(): recolor(lg, bottom, only=lambda b, ob=ob: abs(b[0] - ob[0]) + abs(b[1] - ob[1]) + abs(b[2] - ob[2]) < 0.06)
     hr = m.find("**/hair")
-    if not hr.is_empty():
-        import an_hair      # v1.0.0.2: real hair colour on the strands + scalp shell (tint computed per model)
-        hr.set_shader_input("tint", an_hair.hair_tint(p.who, hair))
+    # v1.0.0.4: hair is left exactly as FIREOUT SHINE renders it (its own colour, no tint) - the 'hair' argument is ignored
     if tone:
         for n in [m.find("**/skin")] + list(m.find_all_matches("**/arm*")) + list(m.find_all_matches("**/fore*")) + \
                  list(m.find_all_matches("**/fingers*")) + list(m.find_all_matches("**/fist*")):
@@ -97,7 +100,7 @@ def make_cln(game, x, y, h):
     """CLN: older, dignified family man - grey hair, dark coat"""
     p = Person(game, "daniel", x, y, h)
     style(p, (0.13, 0.14, 0.13), (0.12, 0.12, 0.13), (0.40, 0.39, 0.38), morph=(1.04, 1.02, 1.0, 1.07), sleeves=True)
-    add_blob(p, "collar", [(0, 0.035, 1.44, 0.105, 0.06, 0.035)], (0.12, 0.13, 0.12, 1))      # coat collar (behind the neck)
+    # v1.0.0.4: no separate collar piece (its edges poked out beside the neck at close range)
     return p
 
 
@@ -113,12 +116,14 @@ def make_family(game, kind, x, y, h):
 def make_cop(game, x, y, h, female=None, riot=False, rnd=None):
     """fictional POLIȚIA VALDOREI officer: invented navy uniform, invented hi-vis band, peaked cap or riot helmet, invented badge"""
     rnd = rnd or random
-    female = (rnd.random() < 0.4) if female is None else female
-    p = Person(game, "ana" if female else "daniel", x, y, h)
+    # v1.0.0.4: officers are built on DANIEL's full model - Ana's tank-top body left bare shoulder skin between the
+    # long uniform sleeves and the straps at close range
+    female = False
+    p = Person(game, "daniel", x, y, h)
     k = rnd.uniform(-1, 1)
     style(p, (0.06, 0.09, 0.2), (0.05, 0.07, 0.15), rnd.choice(__import__("an_hair").NATURAL_HAIR[:4]),
-          morph=(rnd.uniform(0.96, 1.06), rnd.uniform(0.97, 1.04), rnd.uniform(0.98, 1.03), rnd.uniform(0.95, 1.08)), sleeves=True)
-    skin_tone(p, rnd.choice((0, 0, 1, 1, 2, 3)), arms=False)
+          morph=None, sleeves=True)
+    skin_tone(p, 0, arms=False)
     z0 = 1.16 if not female else 1.13
     band = MB("hiviz"); r = 0.19 if not female else 0.17
     for a in range(16):
@@ -143,14 +148,14 @@ def make_cop(game, x, y, h, female=None, riot=False, rnd=None):
     return p
 
 
-def make_protester(game, x, y, h, rnd):
-    female = rnd.random() < 0.5
+def make_protester(game, x, y, h, rnd, female=None):
+    female = (rnd.random() < 0.5) if female is None else female
     p = Person(game, "ana" if female else "daniel", x, y, h)
     k = rnd.uniform(-1, 1)
     style(p, rnd.choice([(0.35, 0.12, 0.12), (0.15, 0.2, 0.35), (0.3, 0.3, 0.32), (0.45, 0.38, 0.25), (0.12, 0.25, 0.18), (0.6, 0.55, 0.5)]),
           rnd.choice([(0.1, 0.12, 0.2), (0.15, 0.15, 0.16), (0.3, 0.28, 0.24)]), rnd.choice(__import__("an_hair").EVERYDAY_HAIR),
-          morph=(rnd.uniform(0.95, 1.07), rnd.uniform(0.97, 1.04), rnd.uniform(0.97, 1.03), rnd.uniform(0.94, 1.08)))
-    skin_tone(p, rnd.choice((0, 0, 1, 1, 2, 3)))
+          morph=None)
+    skin_tone(p, 0)
     p.prop_kind = rnd.choice(["placard", "placard", "flag", "phone", "candle"])
     hand = p.handR if not p.handR.is_empty() else p.model
     if p.prop_kind in ("placard", "flag"):

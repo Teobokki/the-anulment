@@ -124,13 +124,13 @@ class Game(Base):
                 w.grid.add_rect((x0, y0, x1, y1), "w")
         bn = bm.node(); bn.reparent_to(root); bn.set_light_off(); bn.set_color_scale(0.6, 0.6, 0.62, 1)
         # barrier line in front of the court where the police hold a (peaceful) shield line
-        self.crowd = AP.crowd_lod(self, (-36, -36, 36, 6), 260, rnd, avoid=[(-6, -12, 6, 0)], face=COURT)
-        self.crowd2 = AP.crowd_lod(self, (-90, -9, -50, 9), 70, rnd, face=(0, 0))
-        self.near = []
-        for k in range(10):
-            a = rnd.uniform(0, 6.28); r = rnd.uniform(4, 12)
-            p = AP.make_protester(self, PROTEST["c"][0] + math.cos(a) * r, PROTEST["c"][1] + math.sin(a) * r * 0.6, 0, rnd)
-            p.h = math.degrees(math.atan2(-(COURT[0] - p.x), COURT[1] - p.y)); p.sync(); self.near.append(p)
+        # v1.0.0.4: full FIREOUT-SHINE characters near the player (pooled), impostor pictures of them further away
+        import an_crowd
+        slots = an_crowd.make_slots(self, (-36, -36, 36, 6), 260, rnd, avoid=[(-6, -12, 6, 0)], face=COURT) + \
+                an_crowd.make_slots(self, (-90, -9, -50, 9), 70, rnd, face=(0, 0))
+        self.crowd_sys = an_crowd.Crowd(self, slots, rnd); self.crowd = self.crowd_sys.root
+        self.crowd2 = NodePath("crowd2")
+        self.near = self.crowd_sys.active()
         self.cops = []
         for k in range(8):
             p = AP.make_cop(self, 24 + k * 3.2, 9.0, 180, riot=True, rnd=rnd); p.sync(); p.post = (p.x, p.y); self.cops.append(p)
@@ -780,7 +780,8 @@ class Game(Base):
                     dx, dy = me.x - cx, me.y - cy; d = math.hypot(dx, dy)
                     if 1e-3 < d < r + 0.45: me.x += dx / d * (r + 0.45 - d); me.y += dy / d * (r + 0.45 - d)
         t = self.time; beat = t * 104 / 60.0 * math.pi
-        for p in self.near:   # near-LOD protesters: chant on the beat, raise placards, cheer
+        self.crowd_sys.update(dt); self.near = self.crowd_sys.active()
+        for p in self.near:   # the full protesters near the player: chant on the beat, raise placards, cheer
             ch = getattr(p, "cheer", 0.0); p.cheer = max(0.0, ch - dt)
             a = -150 if ch > 0 else (-95 + 25 * math.sin(beat + p.beat))
             p.set_arms((a, 8), (-20 + 10 * math.sin(beat), 4), (-20, 0), (-30, 0)); p.model.set_z(0.04 * max(0, math.sin(beat * (2 if ch else 1) + p.beat)))
@@ -864,8 +865,9 @@ class Game(Base):
         self.save(); self.app.task_mgr.remove("game-update"); self.unbind(); self.signals.destroy(); self.chant.stop()
         self._ds_end() if getattr(self, "_ds", None) else None
         for c in list(self.cars): c.destroy()
-        for p in self.peds + self.near + self.cops + list(self.chars.values()) + getattr(self, "cut_people", []): p.destroy()
-        for n in (self.scene, self.crowd, self.crowd2, self.hud, self.mm_root, self.lb_top, self.lb_bot, self.fade_np): n.remove_node()
+        self.crowd_sys.destroy(); self.near = []
+        for p in self.peds + self.cops + list(self.chars.values()) + getattr(self, "cut_people", []): p.destroy()
+        for n in (self.scene, self.crowd2, self.hud, self.mm_root, self.lb_top, self.lb_bot, self.fade_np): n.remove_node()
         for o in [self.overlay, self.phone, self.board, self.chat, self._mmf, self.pr_bar[0]] + self.btn_nodes:
             if o: o.destroy()
         for t in (self.obj_t, self.stars_t, self.speed_t, self.kmh_t, self.radio_t, self.prompt, self.sub, self.sub_en, self.toast_t, self.cap1, self.cap2, self.dist_lbl) + tuple(self.mm_icons):

@@ -3,7 +3,7 @@
 import os, sys, json, time, math, random, threading, tempfile, urllib.request, shutil, traceback
 
 APP_NAME = "THE ANULMENT"
-APP_VERSION = "1.0.0.3"
+APP_VERSION = "1.0.0.4"
 REPO = "Teobokki/the-anulment"
 UPDATE_URL = "https://raw.githubusercontent.com/%s/main/latest.json" % REPO
 RELEASES_URL = "https://github.com/%s/releases/latest" % REPO
