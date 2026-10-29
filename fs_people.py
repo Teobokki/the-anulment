@@ -36,7 +36,9 @@ def load(app, who, outfit="default"):
         if not os.path.exists(p): p = os.path.join(app.BASE, "assets", "models", BAM.get(who, "heroine") + ".bam"); outfit = "default"
         if who != "ana" and not os.path.exists(p):
             p = os.path.join(app.BASE, "assets", "models", "heroine.bam")
-        m = app.loader.load_model(Filename.from_os_specific(p)); fix_uv(m); _models[key] = m
+        m = app.loader.load_model(Filename.from_os_specific(p)); fix_uv(m)
+        import an_hair; an_hair.prepare(m)     # v1.0.0.2: solid hair shell + clothes over the skin
+        _models[key] = m
     return _models[key].copy_to(NodePath(who))
 
 
@@ -60,7 +62,12 @@ def fix_uv(m):
 
 
 def tex(app, name):
-    t = app.loader.load_texture(Filename.from_os_specific(os.path.join(app.BASE, "assets", "tex", name)))
+    p = os.path.join(app.BASE, "assets", "tex", name)
+    if not os.path.exists(p):       # v1.0.0.2: a missing skin-tone variant falls back to the base skin, never a missing texture
+        import re
+        alt = re.sub(r"_t[0-9]+(?=\.png$)", "", name)
+        print("tex: missing", name, "-> using", alt); p = os.path.join(app.BASE, "assets", "tex", alt)
+    t = app.loader.load_texture(Filename.from_os_specific(p))
     t.set_minfilter(SamplerState.FT_linear_mipmap_linear)
     return t
 
@@ -140,7 +147,8 @@ class Person:
                 if not n.is_empty(): n.set_texture_off(2); n.set_shader_input("use_tex", 0.0)
             tops = [c for c in PED_TOPS if max(c) > 0.3] + [(0.55, 0.62, 0.7), (0.95, 0.55, 0.45), (0.4, 0.3, 0.25), (0.92, 0.9, 0.8)]
             bottoms = [c for c in PED_BOTTOMS if not (c[0] > 0.4 and c[1] < 0.2)] + [(0.22, 0.32, 0.5), (0.35, 0.35, 0.38)]
-            hairs = [h for h in PED_HAIR if h != (1, 1, 1)]
+            import an_hair      # v1.0.0.2: real hair colours (black / browns / auburn / blonde / grey) on both models
+            hairs = [an_hair.hair_tint(base, h)[:3] for h in an_hair.EVERYDAY_HAIR]
             hr_ = m.find("**/hair")
             if not hr_.is_empty():
                 v = rnd.random()                 # different hair silhouettes: fuller, cropped or a bun
@@ -151,7 +159,7 @@ class Person:
                     if v < 0.35: hscale(1.06, 1.12, 1.03)
                     elif v < 0.65:
                         from fs_miyo import blob_mesh
-                        bun = m.attach_new_node(blob_mesh("bun", [(-0.012, 0.16, 1.64, 0.055, 0.05, 0.05), (-0.012, 0.13, 1.66, 0.045, 0.04, 0.04)], (0.06, 0.05, 0.045, 1)))
+                        bun = m.attach_new_node(blob_mesh("bun", [(-0.012, 0.16, 1.64, 0.055, 0.05, 0.05), (-0.012, 0.13, 1.66, 0.045, 0.04, 0.04)], (0.072, 0.029, 0.037, 1)))
                         bun.reparent_to(hr_.get_parent()); bun.set_name("hair_bun"); fs_shaders.apply(bun, app, gloss=0.35, sheen=0.3); hscale(0.98, 0.96, 1.0)
                 else:
                     if v < 0.4: hscale(1.05, 1.08, 1.08)

@@ -52,8 +52,13 @@ varying vec3 wpos; varying vec3 wnrm; varying vec2 uv; varying vec3 wtan; varyin
 void main() {
   vec3 N = normalize(wnrm);
   if (use_nmap > 0.5 && dot(wtan, wtan) > 1e-6) {
-    vec3 T = normalize(wtan - N * dot(N, wtan)); vec3 B = cross(N, T) * tsign;
-    vec3 nm = texture2D(normalmap, uv).xyz * 2.0 - 1.0;
+    // v1.0.0.2: tangent frame rebuilt per pixel from screen-space derivatives (cotangent frame), so the
+    // mirrored half of a face/body gets the same lighting as the other half (stored tangent signs were wrong)
+    vec3 dp1 = dFdx(wpos); vec3 dp2 = dFdy(wpos); vec2 du1 = dFdx(uv); vec2 du2 = dFdy(uv);
+    vec3 dp2p = cross(dp2, N); vec3 dp1p = cross(N, dp1);
+    vec3 T = dp2p * du1.x + dp1p * du2.x; vec3 B = dp2p * du1.y + dp1p * du2.y;
+    float im = inversesqrt(max(max(dot(T, T), dot(B, B)), 1e-20)); T *= im; B *= im;
+    vec3 nm = texture2D(normalmap, uv).xyz * 2.0 - 1.0; nm.xy *= 0.6;   // softer skin grain
     N = normalize(T * nm.x + B * nm.y + N * nm.z);
   }
   vec3 V = normalize(campos - wpos);
