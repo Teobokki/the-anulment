@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0.1",
-  "release_url": "https://github.com/Teobokki/the-anulment/releases/tag/v1.0.0.1",
-  "url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.1/THE-ANULMENT-Setup-1.0.0.1.exe",
-  "installer_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.1/THE-ANULMENT-Setup-1.0.0.1.exe",
-  "full_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.1/THE-ANULMENT-1.0.0.1-Windows-x64.zip",
-  "portable_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.1/THE-ANULMENT-Portable.exe",
-  "notes": "Protesters now have Ana and Daniel's real skin with natural skin tones (no tint). Rain is gone: a clear night, and the start screen shows the image clean. The game is now endless free roam: PUBLISH THE TRUTH sets off news and a crowd reaction instead of an ending, and there are repeating tips to photograph, rallies and news. Per-user, no admin."
+  "version": "1.0.0.2",
+  "release_url": "https://github.com/Teobokki/the-anulment/releases/tag/v1.0.0.2",
+  "url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.2/THE-ANULMENT-Setup-1.0.0.2.exe",
+  "installer_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.2/THE-ANULMENT-Setup-1.0.0.2.exe",
+  "full_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.2/THE-ANULMENT-1.0.0.2-Windows-x64.zip",
+  "portable_url": "https://github.com/Teobokki/the-anulment/releases/download/v1.0.0.2/THE-ANULMENT-Portable.exe",
+  "notes": "Skins and hair fixed on every character: no dark patches on faces or limbs, hands match the skin, solid hair in natural colours, shaded hoods, collars, caps and riot helmets (the helmet no longer covers the face), and a distant crowd with solid hair and natural skin. Per-user, no admin."
 }
